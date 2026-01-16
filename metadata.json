@@ -1,0 +1,8 @@
+{
+  "name": "FitFocus Calorie Tracker",
+  "description": "A high-performance personal calorie and fitness tracker inspired by Lose It, featuring AI-powered food recognition and natural language logging.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
