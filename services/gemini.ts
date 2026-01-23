@@ -3,7 +3,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { AIAnalysisResult } from "../types";
 
 // Always use { apiKey: process.env.API_KEY } directly as per guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const apiKey = process.env.API_KEY;
+const ai = apiKey ? new GoogleGenAI({ apiKey }) : null;
 
 const ANALYSIS_SCHEMA = {
   type: Type.OBJECT,
@@ -21,6 +22,10 @@ const ANALYSIS_SCHEMA = {
 
 export const analyzeFoodImage = async (base64Image: string): Promise<AIAnalysisResult | null> => {
   try {
+    if (!ai) {
+      console.error("Gemini API Key is missing");
+      return null;
+    }
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: {
@@ -46,6 +51,10 @@ export const analyzeFoodImage = async (base64Image: string): Promise<AIAnalysisR
 
 export const parseNaturalLanguageFood = async (input: string): Promise<AIAnalysisResult[] | null> => {
   try {
+    if (!ai) {
+      console.error("Gemini API Key is missing");
+      return null;
+    }
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Parse this food diary entry: "${input}". Extract a list of food items, their estimated calories, protein (g), carbs (g), fat (g), and serving sizes.`,

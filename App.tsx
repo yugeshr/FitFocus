@@ -5,6 +5,7 @@ import { MealType, FoodItem, DailyLog, UserGoal, AIAnalysisResult, Gender, Activ
 import AddFoodModal from './components/AddFoodModal';
 import EditFoodModal from './components/EditFoodModal';
 import WaterTracker from './components/WaterTracker';
+import { loadUserData, saveUserData } from './services/firebase';
 
 const getIstDateString = (date: Date): string => {
   return new Intl.DateTimeFormat('en-CA', {
@@ -44,12 +45,12 @@ const INITIAL_GOAL: UserGoal = {
 
 const App: React.FC = () => {
   const todayStr = useMemo(() => getIstDateString(new Date()), []);
-  
+
   const [activeTab, setActiveTab] = useState<'dashboard' | 'log' | 'profile'>('dashboard');
   const [selectedDate, setSelectedDate] = useState<string>(todayStr);
   const [logs, setLogs] = useState<Record<string, DailyLog>>({ [todayStr]: createEmptyLog(todayStr) });
   const [goal, setGoal] = useState<UserGoal>(INITIAL_GOAL);
-  
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'text' | 'camera'>('text');
   const [selectedMealForAdd, setSelectedMealForAdd] = useState<MealType>('Breakfast');
@@ -57,23 +58,25 @@ const App: React.FC = () => {
   const [tempGoal, setTempGoal] = useState<UserGoal>(INITIAL_GOAL);
 
   useEffect(() => {
-    const saved = localStorage.getItem('fitfocus_v3_data');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed.logs) setLogs(parsed.logs);
-        if (parsed.goal) {
-          setGoal(parsed.goal);
-          setTempGoal(parsed.goal);
+    const initData = async () => {
+      const data = await loadUserData();
+      if (data) {
+        if (data.logs) setLogs(data.logs);
+        if (data.goal) {
+          setGoal(data.goal);
+          setTempGoal(data.goal);
         }
-      } catch (e) {
-        console.error("Failed to load saved data");
       }
-    }
+    };
+    initData();
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('fitfocus_v3_data', JSON.stringify({ logs, goal }));
+    // Debounce saving to avoid too many writes
+    const timeoutId = setTimeout(() => {
+      saveUserData({ logs, goal });
+    }, 1000);
+    return () => clearTimeout(timeoutId);
   }, [logs, goal]);
 
   const currentLog = useMemo(() => logs[selectedDate] || createEmptyLog(selectedDate), [logs, selectedDate]);
@@ -82,7 +85,7 @@ const App: React.FC = () => {
     let streak = 0;
     const sortedDates = Object.keys(logs).sort().reverse();
     const today = getIstDateString(new Date());
-    
+
     // Check if today or yesterday has logs
     let checkDate = new Date();
     while (true) {
@@ -90,7 +93,7 @@ const App: React.FC = () => {
       const log = logs[dateStr];
       // Added type casting to FoodItem[][] to fix "Property 'length' does not exist on type 'unknown'"
       const hasEntries = log && (Object.values(log.meals) as FoodItem[][]).some(m => m.length > 0);
-      
+
       if (hasEntries) {
         streak++;
         checkDate.setDate(checkDate.getDate() - 1);
@@ -254,7 +257,7 @@ const App: React.FC = () => {
               </p>
             </div>
             <div className="w-full h-1 bg-slate-900 rounded-full mt-2 overflow-hidden">
-              <div 
+              <div
                 className={`h-full transition-all duration-700 ${isOver ? 'bg-red-500' : 'bg-amber-500'}`}
                 style={{ width: `${Math.min((totals.consumed / goal.dailyBudget) * 100, 100)}%` }}
               />
@@ -294,8 +297,8 @@ const App: React.FC = () => {
               <h3 className="text-sm font-black uppercase tracking-widest text-slate-200">Weight Tracker</h3>
             </div>
             <div className="flex items-center gap-2">
-              <input 
-                type="number" 
+              <input
+                type="number"
                 step="0.1"
                 placeholder="0.0"
                 className="w-16 bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-xs font-bold text-center focus:outline-none focus:ring-1 focus:ring-amber-500/50"
@@ -305,7 +308,7 @@ const App: React.FC = () => {
               <span className="text-[10px] font-bold text-slate-500 uppercase">kg</span>
             </div>
           </div>
-          
+
           <div className="space-y-2">
             <div className="flex justify-between text-[10px] font-black uppercase tracking-tighter text-slate-500">
               <span>Start: {goal.startingWeight}kg</span>
@@ -313,7 +316,7 @@ const App: React.FC = () => {
               <span>Target: {goal.targetWeight}kg</span>
             </div>
             <div className="h-2 bg-slate-900 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-gradient-to-r from-amber-600 to-amber-400 transition-all duration-1000"
                 style={{ width: `${weightProgress}%` }}
               />
@@ -340,8 +343,8 @@ const App: React.FC = () => {
               </div>
             ) : (
               allItems.slice().reverse().map(({ item, meal }) => (
-                <button 
-                  key={item.id} 
+                <button
+                  key={item.id}
                   onClick={() => setEditingItem({ item, meal })}
                   className="w-full flex items-start gap-4 group text-left hover:bg-white/5 p-2 -m-2 rounded-2xl transition-all"
                 >
@@ -372,13 +375,13 @@ const App: React.FC = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-black">Diary</h1>
         <div className="relative">
-          <input type="date" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => setSelectedDate(e.target.value)}/>
+          <input type="date" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e) => setSelectedDate(e.target.value)} />
           <div className="bg-slate-900 p-2 rounded-xl text-amber-500 border border-slate-800">
             <CalendarIcon size={18} />
           </div>
         </div>
       </div>
-      
+
       {(Object.entries(currentLog.meals) as [MealType, FoodItem[]][]).map(([meal, items]) => {
         const mealTotal = items.reduce((sum, i) => sum + i.calories, 0);
         return (
@@ -397,7 +400,7 @@ const App: React.FC = () => {
                   <span className="text-sm font-black text-slate-400">{item.calories}</span>
                 </button>
               ))}
-              <button 
+              <button
                 onClick={() => { setSelectedMealForAdd(meal as MealType); handleOpenModal('text'); }}
                 className="text-[10px] font-black uppercase text-slate-800 hover:text-amber-500/50 flex items-center gap-1"
               >
@@ -427,23 +430,23 @@ const App: React.FC = () => {
             <label className="text-[10px] text-slate-500 font-black uppercase ml-1">Gender</label>
             <div className="flex bg-slate-900 border border-slate-800 rounded-2xl p-1">
               {(['male', 'female'] as const).map(g => (
-                <button key={g} onClick={() => setTempGoal({...tempGoal, gender: g})} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${tempGoal.gender === g ? 'bg-amber-500 text-black' : 'text-slate-500'}`}>{g}</button>
+                <button key={g} onClick={() => setTempGoal({ ...tempGoal, gender: g })} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-xl transition-all ${tempGoal.gender === g ? 'bg-amber-500 text-black' : 'text-slate-500'}`}>{g}</button>
               ))}
             </div>
           </div>
           <div className="space-y-1">
             <label className="text-[10px] text-slate-500 font-black uppercase ml-1">Age</label>
-            <input type="number" className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-2 text-sm font-bold text-white" value={tempGoal.age} onChange={e => setTempGoal({...tempGoal, age: parseInt(e.target.value) || 0})}/>
+            <input type="number" className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-2 text-sm font-bold text-white" value={tempGoal.age} onChange={e => setTempGoal({ ...tempGoal, age: parseInt(e.target.value) || 0 })} />
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
             <label className="text-[10px] text-slate-500 font-black uppercase ml-1">Starting Weight</label>
-            <input type="number" step="0.1" className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-2 text-sm font-bold text-white" value={tempGoal.startingWeight} onChange={e => setTempGoal({...tempGoal, startingWeight: parseFloat(e.target.value) || 0})}/>
+            <input type="number" step="0.1" className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-2 text-sm font-bold text-white" value={tempGoal.startingWeight} onChange={e => setTempGoal({ ...tempGoal, startingWeight: parseFloat(e.target.value) || 0 })} />
           </div>
           <div className="space-y-1">
             <label className="text-[10px] text-slate-500 font-black uppercase ml-1">Target Weight</label>
-            <input type="number" step="0.1" className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-2 text-sm font-bold text-white" value={tempGoal.targetWeight} onChange={e => setTempGoal({...tempGoal, targetWeight: parseFloat(e.target.value) || 0})}/>
+            <input type="number" step="0.1" className="w-full bg-slate-900/50 border border-slate-800 rounded-2xl px-5 py-2 text-sm font-bold text-white" value={tempGoal.targetWeight} onChange={e => setTempGoal({ ...tempGoal, targetWeight: parseFloat(e.target.value) || 0 })} />
           </div>
         </div>
       </section>
@@ -456,11 +459,11 @@ const App: React.FC = () => {
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <label className="text-[10px] text-slate-500 font-black uppercase ml-1">Daily Budget</label>
-            <input type="number" className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm font-bold text-white" value={tempGoal.dailyBudget} onChange={e => setTempGoal({...tempGoal, dailyBudget: parseInt(e.target.value) || 0})}/>
+            <input type="number" className="w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-3 text-sm font-bold text-white" value={tempGoal.dailyBudget} onChange={e => setTempGoal({ ...tempGoal, dailyBudget: parseInt(e.target.value) || 0 })} />
           </div>
           <div className="space-y-1">
             <label className="text-[10px] text-blue-500 font-black uppercase ml-1">Protein (g)</label>
-            <input type="number" className="w-full bg-blue-500/10 border border-blue-500/20 rounded-2xl px-5 py-3 text-sm font-bold text-white" value={tempGoal.nutrientGoals.protein} onChange={e => setTempGoal({...tempGoal, nutrientGoals: {...tempGoal.nutrientGoals, protein: parseInt(e.target.value) || 0}})}/>
+            <input type="number" className="w-full bg-blue-500/10 border border-blue-500/20 rounded-2xl px-5 py-3 text-sm font-bold text-white" value={tempGoal.nutrientGoals.protein} onChange={e => setTempGoal({ ...tempGoal, nutrientGoals: { ...tempGoal.nutrientGoals, protein: parseInt(e.target.value) || 0 } })} />
           </div>
         </div>
       </section>
