@@ -5,7 +5,7 @@ import { MealType, FoodItem, DailyLog, UserGoal, AIAnalysisResult, Gender, Activ
 import AddFoodModal from './components/AddFoodModal';
 import EditFoodModal from './components/EditFoodModal';
 import WaterTracker from './components/WaterTracker';
-import { loadUserData, saveUserData } from './services/firebase';
+import { loadUserData, saveUserData } from './services/supabase';
 
 const getIstDateString = (date: Date): string => {
   return new Intl.DateTimeFormat('en-CA', {
