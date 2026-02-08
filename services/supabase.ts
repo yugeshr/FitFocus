@@ -11,7 +11,7 @@ const USER_ID = "default_user";
 export const loadUserData = async (): Promise<{ logs?: Record<string, DailyLog>, goal?: UserGoal } | null> => {
     try {
         const { data, error } = await supabase
-            .from("users_data")
+            .from("user_data")
             .select("logs, goal")
             .eq("id", USER_ID)
             .single();
@@ -34,7 +34,7 @@ export const loadUserData = async (): Promise<{ logs?: Record<string, DailyLog>,
 export const saveUserData = async (data: { logs: Record<string, DailyLog>, goal: UserGoal }) => {
     try {
         const { error } = await supabase
-            .from("users_data")
+            .from("user_data")
             .upsert({
                 id: USER_ID,
                 logs: data.logs,
